@@ -1,4 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import ZArith.
 Require Import Shared.
@@ -18,3 +18,8 @@ Axiom int_lt_order : 2^129 < field_order.
 Axiom field_order_prime : Znumtheory.prime field_order.
 Axiom one_lt_common : 1 < common.
 Axiom encode_frame_table_entry_order1 : 2 ^ (1 + 5 * CommonModel.COMMON_RANGE_OFFSET) < field_order.
+
+Axiom encode_br_table_entry_field_order : 2^(6*32) < field_order.
+Axiom encode_instruction_table_entry_field_order : 2^(208) < field_order.
+
+Axiom common_le_2_32 : common < 2^32.

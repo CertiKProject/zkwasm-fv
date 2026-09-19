@@ -1,4 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import ZArith.
 Require Import List.
@@ -6,6 +6,7 @@ Require Import Shared.
 Require Import ETable.
 Require MTable.
 Require Import Bool.
+
 
 Notation is_i32_cell := op_rel_is_i32.
 Notation is_sign_cell := op_rel_is_sign.
@@ -54,6 +55,7 @@ Notation l_neg_r_neg_cell := op_rel_l_neg_r_neg.
 Notation memory_table_lookup_stack_read_rhs := op_rel_memory_table_lookup_stack_read_rhs.
 Notation memory_table_lookup_stack_read_lhs := op_rel_memory_table_lookup_stack_read_lhs.
 Notation memory_table_lookup_stack_write := op_rel_memory_table_lookup_stack_write.
+
 
 (* isbit, is16, iscommon, is64 from etable *)
 Axiom is_i32_bit: isbit is_i32_cell.
@@ -162,6 +164,7 @@ Axiom stack_read_rhs :
     (fun get => get rhs_u64_cell)
     (fun get => get (ops_cell Rel)).
  
+
 (* stack_read_lhs *)
 Axiom stack_read_lhs :
   alloc_memory_table_lookup_read_cell
@@ -173,6 +176,7 @@ Axiom stack_read_lhs :
     (fun get => get lhs_u64_cell)
     (fun get => get (ops_cell Rel)).
 
+
 (* stack_write *)
 Axiom stack_write :
   alloc_memory_table_lookup_write_cell_with_value
@@ -183,6 +187,7 @@ Axiom stack_write :
     (fun get => get is_i32_cell)
     (fun get => get (ops_cell Rel)).
 Notation res := (memory_table_lookup_stack_write AMTLWC_value_cell).
+
 
 (* rel: selector *)
 Axiom rel_selector :
@@ -197,6 +202,7 @@ Axiom rel_selector :
             + (get op_is_ge_cell 0)
             - 1)
         :: nil).
+
 
 (* rel: compare diff *)
 Axiom rel_compare_diff :
@@ -223,6 +229,7 @@ Axiom rel_compare_diff :
         + (get res_is_eq_cell 0)
         - 1)
     :: nil).
+
 
 (* rel: compare op res *)
 Axiom rel_compare_op_res :
@@ -278,4 +285,14 @@ Axiom rel_compare_op_res :
                 - get l_neg_r_neg_cell 0 * get res_is_gt_cell 0
                 - get res_is_eq_cell 0))
     ::nil).
+
+
+
+
+
+
+
+
+
+
 

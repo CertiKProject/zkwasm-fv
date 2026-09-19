@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import Wasm.numerics.
 
@@ -9,6 +7,7 @@ Require Import List.
 Require Import Lia.
 
 Require Import Shared.
+Require Import CommonModel.
 Require Import ImageTableModel.
 
 Open Scope Z_scope.
@@ -72,6 +71,8 @@ Parameter mtable_numRow : Z.
 Axiom mtable_numRow_nonneg : 0 <= mtable_numRow.
 
 Definition mtable := mkTable mtable_cols mtable_numRow mtable_values.
+
+
 
 (* These definitions are written at the higher level of abstraction provided by the "allocator" code.
    That is, we assume rows of "logical" cells (which are returned by the allocator, and 

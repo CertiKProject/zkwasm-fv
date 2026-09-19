@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import Wasm.numerics.
 
@@ -9,6 +7,7 @@ Require Import List.
 Require Import Lia.
 
 Require Import Shared.
+Require Import CommonModel.
 
 Open Scope Z_scope.
 
@@ -17,9 +16,19 @@ Inductive image_table_cols :=
 
 Parameter image_table_values : image_table_cols -> Z -> Z.
 
-Definition COMMON_RANGE_OFFSET := 32.
+Inductive ImageTableEncoder := 
+| Instruction
+| BrTableClass
+| InitMemory. 
 
+Definition encode_message class data :=
+  let CLASS_SHIFT := 224 in
 
+  match class with
+  | Instruction => 1 * Z.shiftl 1 CLASS_SHIFT + data
+  | BrTableClass => 2 * Z.shiftl 1 CLASS_SHIFT + data
+  | InitMemory => 3 * Z.shiftl 1 CLASS_SHIFT + data
+  end.
 
 Definition INDIRECT_CLASS_SHIFT := Z.shiftl 1 192.
 
@@ -104,3 +113,11 @@ Definition encode_conversion sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i3
   
 Definition in_itable (entry : Z) :=
   exists j, entry = image_table_values col j.
+
+Inductive br_table_cols :=
+| br_col.
+
+Parameter br_table_values : br_table_cols -> Z -> Z.
+
+Definition in_brtable (entry : Z) :=
+  exists j, entry = br_table_values br_col j.

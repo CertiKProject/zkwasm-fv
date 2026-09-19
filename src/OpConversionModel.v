@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import List.
 Require Import ZArith.
@@ -137,6 +135,28 @@ Axiom op_conversion_sign_extension :
   - get res 0)
   :: nil).
 
+(* A comment in op_conversion.rs points out
+    /*
+     * Implicit Constraint:
+     *
+     * value_is_i8 || value_is_i16 || value_is_i32 || value_is_i64 can be constrained by opcode.
+     * res_is_i32  || res_is_i64 can be constrained by opcode.
+     */
+
+   Specifically, each conversion instruction is the encoding of one of these 8 operations:
+
+      pub enum ConversionOp {
+          I32WrapI64,
+          I64ExtendI32s,
+          I64ExtendI32u,
+          I32Extend8S,
+          I32Extend16S,
+          I64Extend8S,
+          I64Extend16S,
+          I64Extend32S,
+      }
+   These following four axioms follow that reasoning. *)
+
 Axiom allowed_opcodes_val : forall j fid iid sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64,
   image_table_values col j = 
   encode_instruction_table_entry fid iid 
@@ -172,3 +192,28 @@ Axiom allowed_opcodes_res : forall j fid iid sign val_type_is_i32 val_is_i8 val_
   encode_instruction_table_entry fid iid
     (Z.shiftl (OpcodeClass_u64 Conversion) OPCODE_CLASS_SHIFT
     + encode_conversion sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 0 1).
+
+
+Axiom allowed_opcodes_val32 :
+  forall j fid iid sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64,
+  image_table_values col j = 
+  encode_instruction_table_entry fid iid 
+    (Z.shiftl (OpcodeClass_u64 Conversion) OPCODE_CLASS_SHIFT
+    + encode_conversion sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64) ->
+   ( val_is_i32 = 1 ->  res_is_i64 = 1).
+
+Axiom allowed_opcodes_res64 :
+  forall j fid iid sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64,
+  image_table_values col j = 
+  encode_instruction_table_entry fid iid 
+    (Z.shiftl (OpcodeClass_u64 Conversion) OPCODE_CLASS_SHIFT
+    + encode_conversion sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64) ->
+   (res_is_i64 = 1 -> val_is_i64 = 0).
+
+Axiom allowed_opcodes_val_type_is_i32 :
+    forall j fid iid sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64,
+  image_table_values col j = 
+  encode_instruction_table_entry fid iid 
+    (Z.shiftl (OpcodeClass_u64 Conversion) OPCODE_CLASS_SHIFT
+    + encode_conversion sign val_type_is_i32 val_is_i8 val_is_i16 val_is_i32 val_is_i64 res_is_i32 res_is_i64) ->
+   (val_type_is_i32 = 1 <-> val_is_i64 = 0).

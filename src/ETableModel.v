@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 (* This file models the constraints from etable/mod.rs, as well as
    the EventTableOpcodeConfigBuilder traits for each instruction (i.e., `opcode`,
@@ -18,6 +16,7 @@
    (see e.g. rest_mops_change_enabled below for a representative example).
 *)
 
+
 Require Import ZArith.
 Require Import List.
 Require Import Shared.
@@ -26,6 +25,8 @@ Require        Wasm.datatypes.
 Require Import Lia.
 
 Require Import ImageTableModel.
+Require Import WasmiModel.
+
 Require MTableModel MTable.
 Require JTableModel.
 
@@ -130,7 +131,7 @@ Inductive etable_cols :=
 | maximal_memory_pages_cell
 | itable_lookup_cell
 | brtable_lookup_cell
-| jtable_lookup_cell       (* Todo: specify lookup relation *)
+| jtable_lookup_cell
 | pow_table_lookup_modulus_cell
 | pow_table_lookup_power_cell
 | bit_table_lookup_cells : AllocatedBitTableLookupCells -> etable_cols
@@ -914,6 +915,218 @@ Definition opcode_config (cls : OpcodeClass) (i : Z) :=
                      config_opcode := 0 |}  (* todo *)
   end.
 
+
+(* Encoding of instructions. *)
+(* Todo: Maybe this should go into ImageModel.v instead?. *)
+
+Definition Z_of_BinOp o :=
+  match o with
+  | ADD => 0
+  | SUB => 1
+  | MUL => 2
+  | DIV_u => 3
+  | REM_u => 4
+  | DIV_s => 5
+  | REM_s => 6
+  end.
+
+Definition Z_of_BinShiftOp o :=
+  match o with 
+    SHL => 0
+  | SHR_u => 1
+  | SHR_s => 2
+  | ROTL => 3
+  | ROTR => 4
+  end.
+
+Definition Z_of_UnaryOp op :=
+  match op with
+  | CTZ  => 0
+  | CLZ => 1
+  | POPCNT => 2
+  end.
+
+Definition Z_of_RelOp op :=
+  match op with
+  | EQ => 0
+  | NEQ => 1
+  | GT_s => 2
+  | GT_u => 3
+  | GE_s => 4
+  | GE_u => 5
+  | LT_s => 6
+  | LT_u => 7
+  | LE_u => 9
+  | LE_s => 8
+  end.
+
+
+Definition encode_ConvOp (sign is32 : bool) src res :=
+  (if sign then Z.shiftl 1 7 else 0)
+  + (if is32 then Z.shiftl 1 6 else 0) 
+  + (match src with
+     | VAL8 =>  Z.shiftl 1 5
+     | VAL16 =>  Z.shiftl 1 4
+     | VAL32 => Z.shiftl 1 3
+     | VAL64 => Z.shiftl 1 2 end)
+  + (match res with RES32 => Z.shiftl 1 1 | RES64 => 1 end).
+
+Definition Z_of_ConvOpSrc sz :=
+  match sz with
+    VAL8 => 0
+  | VAL16 => 1
+  | VAL32 => 2
+  | VAL64 => 3
+  end.
+
+Definition encode_load_access sz sign
+  := (2 * Z_of_ConvOpSrc sz + (Z_of_bool sign) + 1).
+
+Definition encode_store_access sz
+  := Z_of_ConvOpSrc sz + 1.
+
+Definition Z_of_BitOp op :=
+  match op with
+  | AND => 0
+  | OR => 1
+  | XOR => 2
+  end.
+
+Definition opcode_of_instruction i :=
+  match i with
+  | IBinShift is32 op =>
+      Z.shiftl (OpcodeClass_u64 BinShift) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_BinShiftOp op) OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+  | IBin is32 op =>
+      Z.shiftl (OpcodeClass_u64 Bin) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_BinOp op) OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+  | IBrIfEqz keep drop dst_pc =>
+      Z.shiftl (OpcodeClass_u64 BrIfEqz) OPCODE_CLASS_SHIFT
+      +  Z.shiftl (Wasm_int.Int32.unsigned drop) OPCODE_ARG0_SHIFT
+      +  Z.shiftl (Z_of_bool keep) OPCODE_ARG1_SHIFT
+      + (Wasm_int.Int64.unsigned dst_pc)
+   | IBrIf keep drop dst_pc => 
+      Z.shiftl (OpcodeClass_u64 BrIf) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Wasm_int.Int32.unsigned drop) OPCODE_ARG0_SHIFT
+      +  Z.shiftl (Z_of_bool keep) OPCODE_ARG1_SHIFT
+      + (Wasm_int.Int64.unsigned dst_pc)
+  | IBr keep drop dst_pc =>
+      Z.shiftl (OpcodeClass_u64 Br) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Wasm_int.Int32.unsigned drop) OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool keep) OPCODE_ARG1_SHIFT
+      + (Wasm_int.Int64.unsigned dst_pc)      
+  | ICall call_index =>
+      Z.shiftl (OpcodeClass_u64 Call) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Wasm_int.Int32.unsigned call_index) OPCODE_ARG0_SHIFT
+  | ICallIndirect type_index => 
+      Z.shiftl (OpcodeClass_u64 CallIndirect) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Wasm_int.Int32.unsigned type_index) OPCODE_ARG0_SHIFT      
+  | ICallHost => 
+      Z.shiftl (OpcodeClass_u64 CallHost) OPCODE_CLASS_SHIFT
+  | IConst is32 value  =>
+      Z.shiftl (OpcodeClass_u64 Const) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+      + (Wasm_int.Int64.unsigned value)      
+  | IConversion sign is32 src dst =>
+      Z.shiftl (OpcodeClass_u64 Conversion) OPCODE_CLASS_SHIFT
+      + encode_ConvOp sign is32 src dst
+  | IDrop  => Z.shiftl (OpcodeClass_u64 Drop) OPCODE_CLASS_SHIFT
+  | IGlobalGet idx => 
+      Z.shiftl (OpcodeClass_u64 GlobalGet) OPCODE_CLASS_SHIFT
+      + Wasm_int.Int32.unsigned idx
+  | IGlobalSet idx  =>
+      Z.shiftl (OpcodeClass_u64 GlobalSet) OPCODE_CLASS_SHIFT
+      + Wasm_int.Int32.unsigned idx
+  | ILocalGet is32 offset =>
+      Z.shiftl (OpcodeClass_u64 LocalGet) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+      + Wasm_int.Int32.unsigned offset                                                
+  | ILocalSet is32 offset => 
+      Z.shiftl (OpcodeClass_u64 LocalSet) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+      + Wasm_int.Int32.unsigned offset                                                
+  | ILocalTee is32 offset => 
+      Z.shiftl (OpcodeClass_u64 LocalTee) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+      + Wasm_int.Int32.unsigned offset                                                
+  | IRel is32 op => 
+      Z.shiftl (OpcodeClass_u64 Rel) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_RelOp op)  OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+  | IReturn keep drop => 
+      Z.shiftl (OpcodeClass_u64 Return) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Wasm_int.Int32.unsigned drop) OPCODE_ARG0_SHIFT
+      +  Z.shiftl (Z_of_bool keep)  OPCODE_ARG1_SHIFT
+  | ISelect => Z.shiftl (OpcodeClass_u64 Select) OPCODE_CLASS_SHIFT 
+  | ITest is32 =>
+      Z.shiftl (OpcodeClass_u64 Test) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+  | IUnary is32 op =>
+      Z.shiftl (OpcodeClass_u64 Unary) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_UnaryOp op) OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+      
+  | ILoad is32 sz sign offset =>
+                       Z.shiftl (OpcodeClass_u64 Load) OPCODE_CLASS_SHIFT
+                     +  Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+                     + Z.shiftl (encode_load_access sz sign)  OPCODE_ARG1_SHIFT
+                     + Wasm_int.Int64.unsigned offset 
+  | IStore is32 sz offset => 
+      Z.shiftl (OpcodeClass_u64 Store) OPCODE_CLASS_SHIFT
+      +  Z.shiftl (Z_of_bool is32) OPCODE_ARG0_SHIFT
+      + Z.shiftl (encode_store_access sz)  OPCODE_ARG1_SHIFT
+      + Wasm_int.Int64.unsigned offset 
+  | IBinBit is32 op  =>
+      Z.shiftl (OpcodeClass_u64 BinBit) OPCODE_CLASS_SHIFT
+      + Z.shiftl (Z_of_BitOp op) OPCODE_ARG0_SHIFT
+      + Z.shiftl (Z_of_bool is32) OPCODE_ARG1_SHIFT
+  | IMemorySize => Z.shiftl (OpcodeClass_u64 MemorySize) OPCODE_CLASS_SHIFT
+  | IMemoryGrow => Z.shiftl (OpcodeClass_u64 MemoryGrow) OPCODE_CLASS_SHIFT
+  | IBrTable len => Z.shiftl (OpcodeClass_u64 BrTable) OPCODE_CLASS_SHIFT + Wasm_int.Int32.unsigned len
+  end.
+
+
+Axiom module_table_encoding : forall table_idx type offset func_idx,
+    in_brtable (encode_elem_entry table_idx type offset func_idx) ->
+    module_table_entries (Build_CallTableEntry (Wasm_int.Int32.repr table_idx)
+                                               (Wasm_int.Int32.repr type)
+                                               (Wasm_int.Int32.repr offset)
+                                               (Wasm_int.Int32.repr func_idx)).
+
+Axiom image_table_encoding  : forall e,
+    in_itable e ->
+    exists fid iid,
+         0 <= fid < common
+      /\ 0 <= iid < common 
+      /\ e = encode_instruction_table_entry fid iid (opcode_of_instruction (program (fid,iid))).
+
+Definition encode_BrTableEntry e fid iid idx :=
+  (encode_br_table_entry
+     fid
+     iid
+     idx
+     (Wasm_int.Int32.unsigned (br_table_drop e))
+     (Z_of_bool (br_table_keep e))
+     (Wasm_int.Int32.unsigned (br_table_dst_pc e))).
+
+(* These three axioms represents the create_brtable function in specs/src/itable.rs . *)
+Axiom br_table_encoding : forall fid iid len,
+    program (fid,iid) = IBrTable len ->
+    exists table,
+      br_tables (fid,iid) = Some table
+      /\ Z.of_nat (length table) = Wasm_int.Int32.unsigned len
+      /\ forall idx,  0 <= idx < Wasm_int.Int32.unsigned len ->
+                      exists e, List.nth_error table (Z.to_nat idx) = Some e
+                                /\ in_brtable (encode_BrTableEntry e fid iid idx).
+
+Axiom br_table_unique : forall j j' fid iid index drop drop' keep keep' dst_pc dst_pc',
+    br_table_values br_col j  = encode_br_table_entry fid iid index drop keep dst_pc ->
+    br_table_values br_col j' = encode_br_table_entry fid iid index drop' keep' dst_pc' ->
+    j = j'.
+
+
 Definition etable := mkTable etable_cols etable_numRow etable_values.
 
 Definition iscommon c := forall i, 0 <= etable_values c i < common.
@@ -975,6 +1188,7 @@ Axiom constraint_rest_mops : etable_values rest_mops_cell 0
      jtable/assign.rs (line 210). *)
 Axiom constraint_rest_jops : etable_values rest_jops_cell 0
                                = JTableModel.jtable_values JTableModel.data_col JTableModel.JtableOffsetRest.
+
 
 (* These definitions are written at the higher level of abstraction provided by the "allocator" code.
    That is, we assume rows of "logical" cells (which are returned by the allocator, and 
@@ -1088,12 +1302,21 @@ Axiom itable_lookup_encode : forall i idx,
     (etable_values iid_cell i)
     (config_opcode (opcode_config idx i)).
 
+(* "c8a. itable_lookup in itable"*)
 Axiom itable_lookup_in_itable : forall i,
   0 <= i ->
   etable_values enabled_cell i = 1 ->
   exists j, 
     etable_values itable_lookup_cell i =
     image_table_values col j.
+
+(* "c8b. brtable_lookup in brtable" *)
+Axiom brtable_lookup_in_brtable : forall i,
+  0 <= i ->
+  etable_values enabled_cell i = 1 ->
+  exists j, 
+    etable_values brtable_lookup_cell i =
+    br_table_values br_col j.
 
 Require Import RTableModel.
 (*  "c8d. pow_table_lookup in pow_table" *)
@@ -1165,6 +1388,7 @@ Record alloc_memory_table_lookup_read_cell_with_value (c : AllocatedMemoryTableL
       /\ (enabled get)*((MTableModel.encode_memory_table_entry (offset get) (location_type get) (is_i32 get)) - get (c AMTLRC_encode_cell)) = 0
   }.
 
+
 (* Translation of the constraints for alloc_memory_table_lookup_write_cell *)
 Record alloc_memory_table_lookup_write_cell  (c : AllocatedMemoryTableLookupWriteCell -> etable_cols) (eid location_type offset is_i32 value enabled : (etable_cols -> Z) -> Z) := {
     write_start_eid_cell: Z;
@@ -1215,6 +1439,7 @@ Parameter class_of_row : Z -> OpcodeClass.
 Axiom class_of_row_op : forall i c,
     etable_values enabled_cell i = 1 ->
     (etable_values (ops_cell c) i = 1 <-> class_of_row i = c).
+
 
 (**** Assumptions. These axioms do not directly correspond to lines of circuit, but rather about other parts of the system. *)
 

@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import ZArith.
 Require Import List.
@@ -10,56 +8,11 @@ Require        Wasm.datatypes.
 Require Import Lia.
 Require Import  ImageTableModel.
 Require MTableModel MTable JTableModel.
-
-Require Export ETableModel.
-
 Require Import Wasm.operations.
 
-(* (fid, iid) *)
-Definition label : Set := Z * Z.
+Require Export WasmiModel.
+Require Export ETableModel.
 
-Record WasmState := {
-    wasm_pc : label; (* program counter *)
-    wasm_stack : list Z;
-    wasm_globals : list Wasm.datatypes.global;
-    wasm_memory : Wasm.datatypes.memory;
-    wasm_callstack : list label
-}.
-
-Definition incr_iid st :=
-  match st with
-  | Build_WasmState (fid, iid) stk glb mem cs => Build_WasmState (fid, iid+1) stk glb mem cs
-  end.
-
-Definition move_to_label st lbl :=
-  match st with
-  | Build_WasmState _ stk glb mem cs => Build_WasmState lbl stk glb mem cs
-  end.
-
-Definition move_to_iid st next_iid :=
-  match st with
-  | Build_WasmState (fid, iid) stk glb mem cs => Build_WasmState (fid, next_iid) stk glb mem cs
-  end.
-
-Definition update_stack st a' :=
-  match st with
-  | Build_WasmState pc a b c d => {| wasm_pc := pc; wasm_stack := a'; wasm_globals := b; wasm_memory := c; wasm_callstack := d |}
-  end.
-
-Definition update_globals st b' :=
-  match st with
-  | Build_WasmState pc a b c d => {| wasm_pc := pc;  wasm_stack := a; wasm_globals := b'; wasm_memory := c; wasm_callstack := d |}
-  end.
-
-Definition update_memory st c' :=
-  match st with
-  | Build_WasmState pc a b c d => {| wasm_pc := pc; wasm_stack := a; wasm_globals := b; wasm_memory := c'; wasm_callstack := d |}
-  end.
-
-Definition update_callstack st d' :=
-  match st with
-  | Build_WasmState pc a b c d => {| wasm_pc := pc; wasm_stack := a; wasm_globals := b; wasm_memory := c ; wasm_callstack := d' |}
-  end.
 
 Require MTable.
 
@@ -73,37 +26,9 @@ Fixpoint stack_rel (stk_map : map) (sp : Z) (stk : list Z) :=
 Definition stk_map eid :=
   MTable.gather_entries eid MTableModel.LocationType_Stack 0 MTableModel.mtable_numRow empty. 
 
+
 Definition globals_map eid :=
   MTable.gather_entries eid MTableModel.LocationType_Global 0 MTableModel.mtable_numRow empty. 
-
-  (*  Compare with the definition in Wasm.operations:
-
-       Definition sglob_ind (s : store_record) (i : instance) (j : nat) : option nat :=
-         List.nth_error (inst_globs i) j.
-
-
-
-      Here we (for now) omit the indirection of global addresses -> globals.
-   *)
-
-Definition value_rel (z:Z) (v: value) : Prop :=
-  match v with
-  |  VAL_int32 i => z = Wasm_int.Z_of_uint i32m i
-  |  VAL_int64 i => z = Wasm_int.Z_of_uint i64m i
-  |  _ => False
-  end.
-
-From mathcomp Require seq.
-
-Definition glob_val (gs : list Wasm.datatypes.global) (j : nat) : option value :=
-  option_map g_val (List.nth_error gs j).
-
-Definition set_glob (gs : list Wasm.datatypes.global) (k : nat) (v : Wasm.datatypes.value) : option (list Wasm.datatypes.global) :=
-  option_map
-    (fun g =>
-      let g' := Wasm.datatypes.Build_global (Wasm.datatypes.g_mut g) v in
-      seq.set_nth g' gs k g')
-    (List.nth_error gs k).
 
 Record globals_rel glob_map (gs : list global) := {
     globals_rel_domain : MTable.domain MTableModel.LocationType_Global < Z.of_nat (List.length gs);

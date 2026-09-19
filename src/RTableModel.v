@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 (* This file models the optable from rtable.rs. 
 
@@ -30,6 +28,7 @@ Inductive op_table_cols :=
 Parameter op_table_values : op_table_cols -> Z -> Z.
 Parameter op_table_numRow : Z. (* The full table must be bigger than 196993 = 256*256*3 + 256 + 1 + 128 *)
 
+Definition op_table := mkTable op_table_cols op_table_numRow op_table_values.
 
 Definition BitOp_And := 0.
 Definition BitOp_Or := 1.

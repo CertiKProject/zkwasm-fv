@@ -1,5 +1,3 @@
-(* Copyright (C) CertiK 2024-2026 *)
-
 Require Import List.
 Require Import ZArith.
 Require Import Lia.

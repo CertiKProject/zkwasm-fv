@@ -1,4 +1,6 @@
 -R . Top
+Wasmi.v
+WasmiModel.v
 BitTable.v
 BitTableModel.v
 CallReturnHelper.v
@@ -8,6 +10,7 @@ CommonModel.v
 CommonSeq.v
 ETable.v
 ETableModel.v
+InjectivityHelper.v
 ImageTableModel.v
 IntegerFunctions.v
 JTable.v

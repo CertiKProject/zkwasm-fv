@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import Wasm.numerics.
 
@@ -48,6 +46,7 @@ forall n,  0 <= n ->
    ForallP (fun z =>  z mod field_order = 0) es.
 
 Parameter common : Z.  (* The common range. *)
+
 
 (* A type of finite maps of integers. It's axiomatized here, although it would be easy to implement it instead. *)
 Parameter   map : Set.

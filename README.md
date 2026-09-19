@@ -1,13 +1,17 @@
 # Verification of zkWasm in Coq
 
-This repository previews a Coq development to formally verify the [zkWasm](https://github.com/DelphinusLab/zkWasm) zkVM.
-For more information about this project, also see our blog posts [Advanced Formal Verification of Zero Knowledge Proof Blockchains](https://www.certik.com/resources/blog/advanced-formal-verification-of-zero-knowledge-proof-blockchains), [Verifying a ZK Instruction](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-verifying-a-zk-instruction), [A Tale of Two Bugs](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-a-tale-of-two-zk-bugs), and [How ZK Memory Was Proven](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-how-zk-memory-was-proven).
+This repository contains a Coq development to formally verify the [zkWasm](https://github.com/DelphinusLab/zkWasm) zkVM. For more information about this project, also see our blog posts [Advanced Formal Verification of Zero Knowledge Proof Blockchains](https://www.certik.com/resources/blog/advanced-formal-verification-of-zero-knowledge-proof-blockchains), [Verifying a ZK Instruction](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-verifying-a-zk-instruction), [A Tale of Two Bugs](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-a-tale-of-two-zk-bugs), and [How ZK Memory Was Proven](https://www.certik.com/resources/blog/advanced-formal-verification-of-zkp-how-zk-memory-was-proven).
+
+## Correspondence with the paper "Formal Verification of zkWasm, a General-Purpose zkVM"
+
+- The zkWasm Machine Model (Section 3.1) is axiomatized in all the files ending with `*Model.v`.
+- The Wasmi syntax and semantics (Figure 3) is in `WasmiModel.v`
+- The simulation relation R (Figure 4) is in `Relation.v`
+- The "valid" predicate (Figure 4) is `valid_state` in `Wasmi.v`
+- Theorem 3.1 ("soundess") is `soundness` in `Wasmi.v`
+- Theorem 3.2 ("knowledge soundness") is `knowledge_soundness` in `Wasmi.v`.
 
 ## Compiling the code
-
-This release contains all definitions and the statements of the theorems, which shows exactly what has been proven. The proofs themselves have been omitted for now, and replaced with placeholders.
-
-This release is based on an internal repo with commit hash `fb3bc5f33b8c18b367af34cdcaaab6bc9f456c74`, which does contain the corresponding proofs. This internal repo contains 33,080 lines of Coq (11,880 definitional, 21,200 proof) as counted by coqwc.
 
 The development uses [WasmCert](https://github.com/WasmCert/WasmCert-Coq) to help specify the desired theorems. The easiest way to install both Coq and WasmCert is to use [opam](https://opam.ocaml.org/).
 
@@ -179,9 +183,7 @@ Currently the proofs mostly do not handle the possibility of overflows in the fi
 
 ### Assumptions About the Frontend and Prover
 
-We also need some assumptions which do not directly correspond to a particular line in source code: [about the size of the integers](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/CommonModel.v#L14) used in the prover, [about the address of call instructions](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/ETableModel.v#L1228), and [about two static call stack entries](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/JTableModel.v#L158) created by Wasmi.
-
-As a final caveat, in order to save proof effort, we make a few assumptions about integer operations. See the file `IntegerFunctions.v`.
+We also need some assumptions which do not directly correspond to a particular line in source code: [about the size of the integers](blob/main/src/CommonModel.v#L14) used in the prover, [about the address of call instructions](blob/main/src/ETableModel.v#L1228), and [about two static call stack entries](blob/main/src/JTableModel.v#L158) created by Wasmi.
 
 ## Specification and Proofs About the Auxiliary Tables.
 
@@ -199,38 +201,26 @@ The `bit_table` is used as a space to calculate the results of bitwise operation
 
 The `Mtable` is used to represent the state of memory, global variables, local variables, and stack during the program execution. The functionality is to map 64-bit addresses to 64-bit words (and more complicated abstractions, e.g. byte-addressed memory, is built on top of this functionality). Each row in it has the form (eid_start, eid_end, adddress, value, ...), where the first number is the index of the step in the trace that assigned `value` to the address and the second number is the index of the next assignment at the address (which overwrites `value`). In order to write constraints using memory, zkWasm provides functions `alloc_memory_table_lookup_read_cell` and `alloc_memory_table_lookup_write_cell`, which create various Halo2 constraints about what rows should be present in the `MTable`.
 
-Compared to the `RTable` and `bit_table`, the specification is more complex. We define an operation [gather_entries eid](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/MTable.v#L273), which returns a finite map representing the state of the memory at a given `eid`. We then want to prove lemmas saying that if the "lookup read cell" constraints hold, then the read value is the same as what you get by reading from the `gather_entries` map, and similarly if the "lookup write cells" constraints hold, the map at the next `eid` is updated in the expected way. 
+Compared to the `RTable` and `bit_table`, the specification is more complex. We define an operation [gather_entries eid](blob/main/src/MTable.v#L273), which returns a finite map representing the state of the memory at a given `eid`. We then want to prove lemmas saying that if the "lookup read cell" constraints hold, then the read value is the same as what you get by reading from the `gather_entries` map, and similarly if the "lookup write cells" constraints hold, the map at the next `eid` is updated in the expected way. 
 
 However, in reality these results only hold if there are no “extra” entries in the memory table. ZkWasm ensures this by a counting scheme: there is a column in the `MTable` counting the total number of entries, there is a column in the `ETable` tracking how many entries *should* be created by the instructions in the trace, and there is an equality constraint saying that these two counts are equal. Thus the correctness depends on a joint invariant between the `MTable` count, the `ETable` count, and the constraints for all the instructions. 
 
-In order to verify this scheme in a modular way, we define a count (mops_at eid) counting the number of `MTable` entries created by a particular instruction. The `MTable` read and write theorems above get an extra precondition saying that the number of operations (mops_at eid type) is 0 and 1-2, respectively. For each instruction, we prove a lemma `opcode_mops_correct`, which states that it creates *at least* as many MTable entries as expected. Then a lemma [mops_correct](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/ETable.v#L83) uses this and the equality constraint to prove that each instruction created *exactly* as many `MTable` entries as expected. Finally, the correctness proofs for individual instructions can use this information to prove that the read/writes behave as expected.
+In order to verify this scheme in a modular way, we define a count (mops_at eid) counting the number of `MTable` entries created by a particular instruction. The `MTable` read and write theorems above get an extra precondition saying that the number of operations (mops_at eid type) is 0 and 1-2, respectively. For each instruction, we prove a lemma `opcode_mops_correct`, which states that it creates *at least* as many MTable entries as expected. Then a lemma [mops_correct](blob/main/src/ETable.v#L83) uses this and the equality constraint to prove that each instruction created *exactly* as many `MTable` entries as expected. Finally, the correctness proofs for individual instructions can use this information to prove that the read/writes behave as expected.
 
-The proofs of the MTable correctness then requires proving the format of the table (in particular that it is sorted, see [mtable_sorted](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/MTable.v#L58) in MTable.v), and that all the counts behave as expected.
+The proofs of the MTable correctness then requires proving the format of the table (in particular that it is sorted, see [mtable_sorted](blob/main/src/MTable.v#L58) in MTable.v), and that all the counts behave as expected.
 
 ### JTable
 
-The `JTable` contains entries representing the entries on the call stack (i.e., the return address). There is a counting scheme similar to the `MTable`, and the proofs are similar, but we require a slightly more complicated invariant about the entries on the call stack (see [jtable_wellformedness](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/ETable.v#L148) in ETable.v).
+The `JTable` contains entries representing the entries on the call stack (i.e., the return address). There is a counting scheme similar to the `MTable`, and the proofs are similar, but we require a slightly more complicated invariant about the entries on the call stack (see [jtable_wellformedness](blob/main/src/ETable.v#L148) in ETable.v).
 
 
 ## Instruction Specifications
 
-The bulk of the formal verification consists of the correctness proofs for each of the Wasm instructions. The proofs vary in complexity. Some instructions, like pushing a constant onto the stack are quite simple, while loading and storing values in memory is complex because it needs to isolate particular bytes while the `MTable` is based around words. But however large the correctness proofs are, the final specifications look similar. A representative example is [the correctness theorem](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/OpBinBit.v#L28) for the bitwise-AND instruction:
+The bulk of the formal verification consists of the correctness proofs for each of the Wasm instructions. The proofs vary in complexity. Some instructions, like pushing a constant onto the stack are quite simple, while loading and storing values in memory is complex because it needs to isolate particular bytes while the `MTable` is based around words.
 
-```coq
-Theorem BitOp_And_correct : forall i st x1 x2 xs,
-    0 <= i ->
-    (etable_values enabled_cell i) = 1 ->
-    mops_at_correct i ->
-    etable_values (ops_cell BinBit) i = 1 ->
-    etable_values op_class i = RTableModel.BitOp_And ->
-    state_rel i st ->
-    wasm_stack st = (Wasm_int.Z_of_uint i64m x1:: Wasm_int.Z_of_uint i64m x2::xs) ->
-    state_rel (i+1) ((update_stack (incr_iid st) (Wasm_int.Z_of_uint i64m (Wasm_int.int_and i64m x2 x1) :: xs))).
-```
+Intuitively, we want to say that the i-th row of the `ETable` corresponds to the state of the Wasm machine after executing i instructions in the trace. What we prove is that for every type of instruction, the next row is calculated according to the Wasm semantics for that instruction. 
 
-Intuitively, we want to say that the i-th row of the `ETable` corresponds to the state of the Wasm machine after executing i instructions in the trace. What we prove is that for every type of instruction, the next row is calculated according to the Wasm semantics for that instruction. Thus, the full set of `XXX_correct` theorems implicitly defines a small-step operational semantics for Wasm.
-
-As is standard, we define an operational semantics by making datatype representing states of the Wasm machine. It is in the file `Relation.v`: 
+As is standard, we define an operational semantics by making datatype representing states of the Wasm machine, and define a small-step semantics.  It is in the file `WasmiModel.v`: 
 
 ```coq
 Record WasmState := {
@@ -240,18 +230,23 @@ Record WasmState := {
     wasm_memory : Wasm.datatypes.memory;
     wasm_callstack : list label
 }.
+
+Inductive step : WasmState -> WasmState -> Prop :=
+  ...
 ```
 
-The correctness theorem then works by defining a relation `state_rel i st`, which says that the i-th row of the ETable represents the Wasm machine state `st`. The definition of the relation is in the same file.
+The correctness theorem then works by defining a relation `state_rel i st`which says that the i-th row of the ETable represents the Wasm machine state `st`. The definition of the relation is in `Relation.v`.
 
-If we consider the theorem statement again, it begins with the hypotheses `(etable_values enabled_cell i) = 1`, `etable_values (ops_cell BinBit) i = 1`, and `etable_values op_class i = RTableModel.BitOp_And`. These are columns in the ETable that specify which instruction is about to be executed. There are some "instruction decode" circuits relating these columns to the `iid` program counter and the program image table, but in this effort we did not formally verify the decode logic; it has been manually audited to make sure that each row has such a combination of decode columns that one of the instruction correctness theorems apply. (With some additional effort, the decode logic could be verified also, but it seems less error prone than other circuits.)
+We then prove the final correctness theorem (in `Wasmi.v`):
 
-Next, there is the precondition `mops_at_correct i`. This was discussed above in the section about MTable and is justified by the `mops_correct` lemma.
-
-The rest of the theorem statement corresponds to [the official Wasm specification of t.binop](https://webassembly.github.io/spec/core/exec/instructions.html#exec-binop). It says to pop the two top values `x2` and `x1` off the stack, and instead push `AND x2 x1`. The other effect of the instruction is to increment the program counter `iid`. 
-
-Notably, unlike the decode columns, the precondition about the stack does not cover all cases, since we do not say what happens if the stack is empty. This corresponds to the statement in the Wasm specification that "Assert: due to validation, two values of value type are on the top of the stack". In other words, the responsibility of ensuring that the stack is well-formed lies with the Wasm type checker in Wasmi, not with the zkWasm circuits. Similar, considerations apply accessing global variables (the type checker enforces that a suitable global location exists).
-
+```coq
+Theorem knowledge_soundness : forall i,
+    0 <= i < etable_numRow ->
+    etable_values enabled_cell i = 1 ->
+    state_rel 0 init_st ->
+    exists st_i,
+      steps_list init_st (extract_states init_st 0 (Z.to_nat i)) st_i /\ state_rel i st_i.
+```
 
 #### Re-using Specifications from WasmCert
 
@@ -267,8 +262,8 @@ The control flow difference can be seen above: the instruction only manipulates 
 
 In addition to the differences between Wasm and the Wasmi ISA, there are also three places where our specifications disagree with WasmCert, because the version of WasmCert we used is "wrong" or incomplete (they acknowledge this in comments in the source code).
 
-* The WasmCert LOAD specification does not define sign extension, so we define our own [sign_extension](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/OpLoadHelper.v#L137) function.
-* The WasmCert `wasm_extend_s` function for CONVERSION operators is incomplete, so we define our own [sign_extend](https://github.com/CertiKProject/zkwasm-fv/blob/main/src/OpConversion.v#L30)
+* The WasmCert LOAD specification does not define sign extension, so we define our own [sign_extension](blob/main/src/OpLoadHelper.v#L137) function.
+* The WasmCert `wasm_extend_s` function for CONVERSION operators is incomplete, so we define our own [sign_extend](blob/main/src/OpConversion.v#L30)
 * The WasmCert MEM_GROW specification works by comparing to some maximum amount of available memory, but the zkWasm circuit implementation can refuse one allocation and still allow another allocation later. The zkWasm behavior seems to be allowed by the English-language Wasm specification.
 * The WasmCert specifications for shifts and rotations are incorrect. When shifting/rotating a number n by k bits, the Wasm specification actually shifts/rotates n by (k mod s) bits, where s is the number of bits n has (32 or 64), but WasmCert does not include this modulo operation. In addition, signed shift operations do not yet exist in WasmCert.
 

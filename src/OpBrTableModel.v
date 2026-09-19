@@ -1,6 +1,4 @@
-(* This file was automatically extracted by prepare_release script. *)
-
-(* Copyright (C) 2024 CertiK. *)
+(* Copyright (C) CertiK 2024-2026 *)
 
 Require Import List.
 Require Import ZArith.
@@ -115,3 +113,4 @@ Axiom op_br_table_br_table_lookup :
       (get keep 0) 
       (get dst_iid 0))
   ::nil).
+
